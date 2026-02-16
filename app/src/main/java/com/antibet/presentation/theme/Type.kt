@@ -1,4 +1,4 @@
-package com.antibet.ui.theme
+package com.antibet.presentation.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

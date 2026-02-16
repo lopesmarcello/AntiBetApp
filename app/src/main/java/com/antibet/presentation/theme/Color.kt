@@ -1,4 +1,4 @@
-package com.antibet.ui.theme
+package com.antibet.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 
