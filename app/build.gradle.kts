@@ -1,16 +1,17 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.devtools.ksp")
 }
 
 android {
-    namespace = "com.github.lopesmarcello.antibet"
+    namespace = "com.antibet"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.github.lopesmarcello.antibet"
+        applicationId = "com.antibet"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -49,11 +50,19 @@ dependencies {
 
 
 // Room
-    val roomVersion = "2.6.1"
-    implementation("androidx.room:room-runtime:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")
-    ksp("androidx.room:room-compiler:$roomVersion")
+    val room_version = "2.8.4"
 
+    implementation("androidx.room:room-runtime:$room_version")
+
+    // If this project uses any Kotlin source, use Kotlin Symbol Processing (KSP)
+    ksp("androidx.room:room-compiler:$room_version")
+
+    // If this project only uses Java source, use the Java annotationProcessor
+    // No additional plugins are necessary
+    annotationProcessor("androidx.room:room-compiler:$room_version")
+
+    // optional - Kotlin Extensions and Coroutines support for Room
+    implementation("androidx.room:room-ktx:$room_version")
     // WorkManager
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 

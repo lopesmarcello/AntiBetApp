@@ -1,4 +1,4 @@
-package com.github.lopesmarcello.antibet.ui.theme
+package com.antibet.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

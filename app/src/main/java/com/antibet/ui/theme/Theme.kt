@@ -1,4 +1,4 @@
-package com.github.lopesmarcello.antibet.ui.theme
+package com.antibet.ui.theme
 
 import android.app.Activity
 import android.os.Build
