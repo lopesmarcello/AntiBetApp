@@ -1,19 +1,19 @@
-package com.antibet.presentation
+package com.antibet.presentation.navigation
 
+import android.util.Log
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,49 +29,62 @@ import com.antibet.presentation.add.AddEntryScreen
 import com.antibet.presentation.add.AddEntryViewModel
 import com.antibet.presentation.home.HomeScreen
 import com.antibet.presentation.home.HomeViewModel
-import com.antibet.presentation.navigation.Screen
 import com.antibet.presentation.protection.AccessibilityProtectionScreen
 
+object Routes {
+    const val HOME = "home"
+    const val ADD_SAVING = "add_saving"
+    const val PROTECTION = "protection"
+}
+
 @Composable
-fun MainApp() {
+fun AntiBetNavigation(
+    navigateToAddSaving: Boolean = false,
+    detectedDomain: String? = null
+) {
     val navController = rememberNavController()
+
     val context = LocalContext.current
-    
+
     val database = remember { AntibetDatabase.getDatabase(context) }
-    val repository = remember { 
+    val repository = remember {
         AntibetRepository(
             database.betDao(),
             database.savedBetDao(),
             database.siteTriggerDao(),
             database.settingDao()
-        ) 
+        )
     }
-    
+
     val homeViewModel: HomeViewModel = viewModel { HomeViewModel(repository) }
     val addEntryViewModel: AddEntryViewModel = viewModel { AddEntryViewModel(repository) }
-    
-    var isVpnRunning by remember { mutableStateOf(false) }
-    
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    
-    val showBottomBar = currentRoute in listOf(Screen.Home.route, Screen.Protection.route)
-    
+
+    val showBottomBar = currentRoute in listOf(Routes.HOME, Routes.PROTECTION)
+
+    LaunchedEffect(navigateToAddSaving) {
+        if (navigateToAddSaving) {
+            navController.navigate("add_entry/true")
+        }
+    }
+
     Scaffold(
         bottomBar = {
-            if (showBottomBar) {
+            if (showBottomBar){
                 NavigationBar {
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
                         label = { Text("Início") },
-                        selected = currentRoute == Screen.Home.route,
-                        onClick = { navController.navigate(Screen.Home.route) }
+                        selected = currentRoute == Routes.HOME,
+                        onClick = { navController.navigate(Routes.HOME)}
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Favorite, contentDescription = "Proteção") },
                         label = { Text("Proteção") },
-                        selected = currentRoute == Screen.Protection.route,
-                        onClick = { navController.navigate(Screen.Protection.route) }
+                        selected = currentRoute == Routes.PROTECTION,
+                        onClick = { navController.navigate(Routes.PROTECTION) }
                     )
                 }
             }
@@ -79,24 +92,22 @@ fun MainApp() {
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Home.route,
+            startDestination = Routes.HOME,
             modifier = Modifier.padding(paddingValues)
         ) {
-            composable(Screen.Home.route) {
+            composable(Routes.HOME) {
                 HomeScreen(
+                    onNavigateToAdd = { navController.navigate("add_entry/true") },
                     viewModel = homeViewModel,
-                    onNavigateToAdd = { isSaved ->
-                        navController.navigate(Screen.AddEntry.createRoute(isSaved))
-                    }
                 )
             }
-            
-            composable(Screen.Protection.route) {
+
+            composable(Routes.PROTECTION) {
                 AccessibilityProtectionScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
-            
+
             composable(
                 route = "add_entry/{isSaved}",
                 arguments = listOf(
@@ -104,36 +115,15 @@ fun MainApp() {
                 )
             ) { backStackEntry ->
                 val isSaved = backStackEntry.arguments?.getBoolean("isSaved") ?: true
-                
+
                 AddEntryScreen(
                     isSaved = isSaved,
-                    domain = null,
+                    domain = detectedDomain,
                     viewModel = addEntryViewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
-            
-            composable(
-                route = "add_entry/{isSaved}?domain={domain}",
-                arguments = listOf(
-                    navArgument("isSaved") { type = NavType.BoolType },
-                    navArgument("domain") { 
-                        type = NavType.StringType 
-                        nullable = true 
-                        defaultValue = null 
-                    }
-                )
-            ) { backStackEntry ->
-                val isSaved = backStackEntry.arguments?.getBoolean("isSaved") ?: true
-                val domain = backStackEntry.arguments?.getString("domain")
-                
-                AddEntryScreen(
-                    isSaved = isSaved,
-                    domain = domain,
-                    viewModel = addEntryViewModel,
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
+
         }
     }
 }

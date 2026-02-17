@@ -6,11 +6,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.app.NotificationCompat
 import com.antibet.R
+import com.antibet.presentation.MainActivity
 import java.net.URI
 
 class WebMonitorAccessibilityService : AccessibilityService() {
@@ -221,7 +223,12 @@ class WebMonitorAccessibilityService : AccessibilityService() {
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        val intent = packageManager.getLaunchIntentForPackage(packageName)
+
+        val intent = Intent(this, MainActivity::class.java).apply {
+            action = "ACTION_ADD_SAVING"
+            putExtra("EXTRA_DETECTED_DOMAIN", domain)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -242,6 +249,11 @@ class WebMonitorAccessibilityService : AccessibilityService() {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setVibrate(longArrayOf(0, 500, 200, 500))
+            .addAction(
+                R.drawable.ic_add,
+                "Registrar Economia",
+                pendingIntent
+            )
             .build()
 
         notificationManager.notify(NOTIFICATION_ID, notification)
@@ -268,6 +280,7 @@ class WebMonitorAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {
         TODO("Not yet implemented")
     }
+
 
     override fun onDestroy() {
         super.onDestroy()

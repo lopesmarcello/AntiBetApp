@@ -8,21 +8,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.antibet.R
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -51,6 +56,36 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF2E7D32)
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Streak Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_trophy),
+                    contentDescription = null,
+                    tint = Color(0xFFE65100),
+                    modifier = Modifier.size(32.dp)
+                )
+                Column {
+                    Text(
+                        "${state.streakDays} dias sem apostar",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE65100)
+                    )
+                    Text("Continue assim!", color = Color.DarkGray)
+                }
             }
         }
 
