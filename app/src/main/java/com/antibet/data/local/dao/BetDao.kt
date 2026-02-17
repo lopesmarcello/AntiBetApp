@@ -7,7 +7,6 @@ import androidx.room.Query
 import androidx.room.Update
 import com.antibet.data.local.entity.Bet
 import kotlinx.coroutines.flow.Flow
-import java.sql.Time
 
 @Dao
 interface BetDao {
@@ -16,7 +15,7 @@ interface BetDao {
     fun getAllFlow(): Flow<List<Bet>>
 
     @Query("SELECT * FROM bets WHERE timestamp >= :startTime AND timestamp <= :endTime")
-    fun getBetweenDatesFlow(startTime: Long, endTime: Time): Flow<List<Bet>>
+    fun getBetweenDatesFlow(startTime: Long, endTime: Long): Flow<List<Bet>>
 
     @Query("SELECT SUM(amountCents) FROM bets")
     fun getTotalWastedCentsFlow(): Flow<Long?>

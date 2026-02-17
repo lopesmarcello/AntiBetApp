@@ -11,7 +11,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.PendingIntentCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.antibet.MainActivity
+import com.antibet.presentation.MainActivity
 import com.antibet.R
 
 class DailyReminderWorker(

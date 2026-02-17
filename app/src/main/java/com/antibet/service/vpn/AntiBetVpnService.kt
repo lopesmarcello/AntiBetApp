@@ -10,7 +10,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
-import com.antibet.MainActivity
+import com.antibet.presentation.MainActivity
 import com.antibet.R
 import com.antibet.data.local.database.AntibetDatabase
 import com.antibet.data.local.entity.SiteTrigger
