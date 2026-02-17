@@ -38,6 +38,11 @@ class AccessibilityProtectionViewModel : ViewModel() {
         }
     }
 
+    fun checkServiceStatus(context: Context) {
+        viewModelScope.launch {
+            _isServiceEnabled.value = isAccessibilityServiceEnabled(context)
+        }
+    }
     fun checkServiceStatusWithDelay(context: Context) {
         viewModelScope.launch {
             // Aguardar um pouco antes de verificar (usuário pode estar voltando das configurações)

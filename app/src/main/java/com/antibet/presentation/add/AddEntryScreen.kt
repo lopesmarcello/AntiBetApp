@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToLong
 
 @Composable
 fun AddEntryScreen(
@@ -50,8 +51,9 @@ fun AddEntryScreen(
 
         OutlinedTextField(
             value = amountText,
-            onValueChange = { amountText = it.filter { c -> c.isDigit() } },
-            label = { Text("Valor (em centavos)") },
+            onValueChange = { amountText = it },
+            placeholder = { Text("R$0,00") },
+            label = { Text("Valor (em Reais)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth()
         )
@@ -69,9 +71,11 @@ fun AddEntryScreen(
 
         Button(
             onClick = {
-                val amountCents = amountText.toLongOrNull() ?: 0L
+                val clearAmount = amountText.replace(",", ".")
+                val amountReais = clearAmount.toFloatOrNull() ?: 0.0f
+                val amountCents = amountReais * 100.0f;
                 if (amountCents > 0) {
-                    viewModel.saveEntry(amountCents, note, isSaved, domain)
+                    viewModel.saveEntry(amountCents.roundToLong(), note, isSaved, domain)
                     onNavigateBack()
                 }
             },

@@ -37,7 +37,7 @@ fun AccessibilityProtectionScreen(
 
     // Verificar status inicial quando a tela aparecer
     LaunchedEffect(Unit) {
-        viewModel.checkServiceStatusWithDelay(context)
+        viewModel.checkServiceStatus(context)
         viewModel.checkNotificationPermission(context)
     }
 

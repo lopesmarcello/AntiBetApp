@@ -46,7 +46,7 @@ fun HomeScreen(
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Total Economizado", color = Color.DarkGray)
                 Text(
-                    formatCurrency(state.totalSaved),
+                    formatCurrency(state.totalBalance),
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF2E7D32)

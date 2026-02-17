@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.stateIn
 data class HomeUiState(
     val totalSaved: Long = 0L,
     val totalBet: Long = 0L,
+    val totalBalance: Long = 0L,
     val totalSavedThisMonth: Long = 0L,
     val totalBetThisMonth: Long = 0L,
     val streakDays: Int = 0,
@@ -30,6 +31,7 @@ class HomeViewModel(private val repository: AntibetRepository) : ViewModel() {
         HomeUiState(
             totalSaved = saved,
             totalBet = lost,
+            totalBalance = saved - lost,
             totalSavedThisMonth = monthSaved,
             totalBetThisMonth = monthLost,
             streakDays = calculateStreak(),
