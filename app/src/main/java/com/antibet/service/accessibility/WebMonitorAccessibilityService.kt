@@ -12,7 +12,15 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.app.NotificationCompat
 import com.antibet.R
+import com.antibet.data.local.database.AntibetDatabase
+import com.antibet.data.repository.AntibetRepository
 import com.antibet.presentation.MainActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import java.net.URI
 
 class WebMonitorAccessibilityService : AccessibilityService() {
@@ -73,7 +81,11 @@ class WebMonitorAccessibilityService : AccessibilityService() {
 
     private var lastCheckedUrl: String? = null
     private var lastNotificationTime: Long = 0L
-    private var notificationCooldown = 5000L // 5s entre notificacoes
+    private val notificationCooldown = 5000L // 5s entre notificacoes
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var userBlockedDomains: Set<String> = emptySet()
+    private lateinit var repository: AntibetRepository
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -90,9 +102,24 @@ class WebMonitorAccessibilityService : AccessibilityService() {
             notificationTimeout = 100
         }
 
-
         serviceInfo = info
         createNotificationChannel()
+
+        val db = AntibetDatabase.getDatabase(this)
+        repository = AntibetRepository(
+            db.betDao(),
+            db.savedBetDao(),
+            db.siteTriggerDao(),
+            db.settingDao(),
+            db.blockedSiteDao()
+        )
+
+        // Keep user blacklist in memory, refreshed reactively
+        serviceScope.launch {
+            repository.getBlockedSites().collectLatest { sites ->
+                userBlockedDomains = sites.map { it.domain }.toSet()
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -181,21 +208,25 @@ class WebMonitorAccessibilityService : AccessibilityService() {
         try {
             val domain = extractDomain(url)
 
-            val isBettingSite = BETTING_DOMAINS.any { bettingDomain ->
+            val isBuiltInSite = BETTING_DOMAINS.any { bettingDomain ->
                 domain.contains(bettingDomain, ignoreCase = true) ||
                         domain.endsWith(bettingDomain, ignoreCase = true)
             }
 
-            if (isBettingSite) {
-                // cooldown to avoid notification spam
+            val isUserBlocked = userBlockedDomains.any { blocked ->
+                domain.contains(blocked, ignoreCase = true) ||
+                        domain.endsWith(blocked, ignoreCase = true)
+            }
+
+            if (isBuiltInSite || isUserBlocked) {
                 val currentTime = System.currentTimeMillis()
                 if (currentTime - lastNotificationTime > notificationCooldown) {
                     lastNotificationTime = currentTime
-                    showBettingAlert(domain)
+                    // Only offer the "Block" action for built-in sites not yet user-blocked
+                    val offerBlockAction = isBuiltInSite && !isUserBlocked
+                    showBettingAlert(domain, offerBlockAction)
                 }
-
             }
-
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -219,24 +250,35 @@ class WebMonitorAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun showBettingAlert(domain: String) {
+    private fun showBettingAlert(domain: String, offerBlockAction: Boolean = false) {
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-
-        val intent = Intent(this, MainActivity::class.java).apply {
+        val openAppIntent = Intent(this, MainActivity::class.java).apply {
             action = "ACTION_ADD_SAVING"
             putExtra("EXTRA_DETECTED_DOMAIN", domain)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        val pendingIntent = PendingIntent.getActivity(
+        val openAppPendingIntent = PendingIntent.getActivity(
             this,
             0,
-            intent,
+            openAppIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+        val blockIntent = Intent(this, BlockSiteReceiver::class.java).apply {
+            action = BlockSiteReceiver.ACTION_BLOCK_SITE
+            putExtra(BlockSiteReceiver.EXTRA_DOMAIN, domain)
+            putExtra(BlockSiteReceiver.EXTRA_NOTIFICATION_ID, NOTIFICATION_ID)
+        }
+        val blockPendingIntent = PendingIntent.getBroadcast(
+            this,
+            domain.hashCode(),
+            blockIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("⚠️ Site de Apostas Detectado")
             .setContentText("Você está acessando $domain. Lembre-se do seu objetivo!")
@@ -247,16 +289,23 @@ class WebMonitorAccessibilityService : AccessibilityService() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(openAppPendingIntent)
             .setVibrate(longArrayOf(0, 500, 200, 500))
             .addAction(
                 R.drawable.ic_add,
                 "Registrar Economia",
-                pendingIntent
+                openAppPendingIntent
             )
-            .build()
 
-        notificationManager.notify(NOTIFICATION_ID, notification)
+        if (offerBlockAction) {
+            builder.addAction(
+                R.drawable.ic_notification,
+                "Bloquear este site",
+                blockPendingIntent
+            )
+        }
+
+        notificationManager.notify(NOTIFICATION_ID, builder.build())
     }
 
     private fun createNotificationChannel() {
@@ -278,12 +327,12 @@ class WebMonitorAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        TODO("Not yet implemented")
+        // Service interrupted — no action needed
     }
-
 
     override fun onDestroy() {
         super.onDestroy()
+        serviceScope.cancel()
         lastCheckedUrl = null
     }
 

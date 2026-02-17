@@ -1,10 +1,10 @@
 package com.antibet.presentation.navigation
 
-import android.util.Log
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -27,14 +27,16 @@ import com.antibet.data.local.database.AntibetDatabase
 import com.antibet.data.repository.AntibetRepository
 import com.antibet.presentation.add.AddEntryScreen
 import com.antibet.presentation.add.AddEntryViewModel
+import com.antibet.presentation.blockedsites.BlockedSitesScreen
+import com.antibet.presentation.blockedsites.BlockedSitesViewModel
 import com.antibet.presentation.home.HomeScreen
 import com.antibet.presentation.home.HomeViewModel
 import com.antibet.presentation.protection.AccessibilityProtectionScreen
 
 object Routes {
     const val HOME = "home"
-    const val ADD_SAVING = "add_saving"
     const val PROTECTION = "protection"
+    const val BLOCKED_SITES = "blocked_sites"
 }
 
 @Composable
@@ -52,17 +54,20 @@ fun AntiBetNavigation(
             database.betDao(),
             database.savedBetDao(),
             database.siteTriggerDao(),
-            database.settingDao()
+            database.settingDao(),
+            database.blockedSiteDao()
         )
     }
 
     val homeViewModel: HomeViewModel = viewModel { HomeViewModel(repository) }
     val addEntryViewModel: AddEntryViewModel = viewModel { AddEntryViewModel(repository) }
+    val blockedSitesViewModel: BlockedSitesViewModel = viewModel { BlockedSitesViewModel(repository) }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val showBottomBar = currentRoute in listOf(Routes.HOME, Routes.PROTECTION)
+    val bottomBarRoutes = listOf(Routes.HOME, Routes.PROTECTION, Routes.BLOCKED_SITES)
+    val showBottomBar = currentRoute in bottomBarRoutes
 
     LaunchedEffect(navigateToAddSaving) {
         if (navigateToAddSaving) {
@@ -72,19 +77,40 @@ fun AntiBetNavigation(
 
     Scaffold(
         bottomBar = {
-            if (showBottomBar){
+            if (showBottomBar) {
                 NavigationBar {
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                        icon = { Icon(Icons.Default.Home, contentDescription = "Início") },
                         label = { Text("Início") },
                         selected = currentRoute == Routes.HOME,
-                        onClick = { navController.navigate(Routes.HOME)}
+                        onClick = {
+                            navController.navigate(Routes.HOME) {
+                                popUpTo(Routes.HOME) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Favorite, contentDescription = "Proteção") },
                         label = { Text("Proteção") },
                         selected = currentRoute == Routes.PROTECTION,
-                        onClick = { navController.navigate(Routes.PROTECTION) }
+                        onClick = {
+                            navController.navigate(Routes.PROTECTION) {
+                                popUpTo(Routes.HOME) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Bloqueados") },
+                        label = { Text("Bloqueados") },
+                        selected = currentRoute == Routes.BLOCKED_SITES,
+                        onClick = {
+                            navController.navigate(Routes.BLOCKED_SITES) {
+                                popUpTo(Routes.HOME) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
             }
@@ -108,6 +134,10 @@ fun AntiBetNavigation(
                 )
             }
 
+            composable(Routes.BLOCKED_SITES) {
+                BlockedSitesScreen(viewModel = blockedSitesViewModel)
+            }
+
             composable(
                 route = "add_entry/{isSaved}",
                 arguments = listOf(
@@ -123,7 +153,6 @@ fun AntiBetNavigation(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
-
         }
     }
 }

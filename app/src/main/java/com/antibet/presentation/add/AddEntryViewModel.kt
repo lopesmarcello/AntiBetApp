@@ -11,7 +11,13 @@ import kotlinx.coroutines.launch
 
 class AddEntryViewModel(private val repository: AntibetRepository) : ViewModel() {
 
-    fun saveEntry(amountCents: Long, note: String, isSaved: Boolean, domain: String? = null) {
+    fun saveEntry(
+        amountCents: Long,
+        note: String,
+        isSaved: Boolean,
+        domain: String? = null,
+        blockDomain: Boolean = false
+    ) {
         viewModelScope.launch {
             if (isSaved) {
                 repository.insertSavedBet(
@@ -33,6 +39,10 @@ class AddEntryViewModel(private val repository: AntibetRepository) : ViewModel()
                 val todayMillis = CalendarUtils.getTodayInMillis().toString()
                 repository.setSetting(Settings.STREAK_START_DATE, todayMillis)
                 repository.setSetting(Settings.LAST_BET_DATE, todayMillis)
+            }
+
+            if (blockDomain && !domain.isNullOrBlank()) {
+                repository.addBlockedSite(domain, "save_entry")
             }
         }
     }

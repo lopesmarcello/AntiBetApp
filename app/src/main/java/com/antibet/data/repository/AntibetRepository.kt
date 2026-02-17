@@ -1,10 +1,12 @@
 package com.antibet.data.repository
 
 import com.antibet.data.local.dao.BetDao
+import com.antibet.data.local.dao.BlockedSiteDao
 import com.antibet.data.local.dao.SavedBetDao
 import com.antibet.data.local.dao.SettingDao
 import com.antibet.data.local.dao.SiteTriggerDao
 import com.antibet.data.local.entity.Bet
+import com.antibet.data.local.entity.BlockedSite
 import com.antibet.data.local.entity.SavedBet
 import com.antibet.data.local.entity.Setting
 import com.antibet.data.local.entity.SiteTrigger
@@ -16,7 +18,8 @@ class AntibetRepository(
     private val betDao: BetDao,
     private val savedBetDao: SavedBetDao,
     private val siteTriggerDao: SiteTriggerDao,
-    private val settingDao: SettingDao
+    private val settingDao: SettingDao,
+    private val blockedSiteDao: BlockedSiteDao
 ) {
     // bets
 
@@ -79,5 +82,18 @@ class AntibetRepository(
     suspend fun deleteSetting(key: String) =
         settingDao.delete(key)
 
+    // blocked sites
 
+    fun getBlockedSites(): Flow<List<BlockedSite>> = blockedSiteDao.getAllFlow()
+
+    suspend fun getAllBlockedSites(): List<BlockedSite> = blockedSiteDao.getAll()
+
+    suspend fun addBlockedSite(domain: String, source: String) {
+        val normalized = domain.lowercase().removePrefix("www.")
+        blockedSiteDao.insert(BlockedSite(domain = normalized, addedFrom = source))
+    }
+
+    suspend fun removeBlockedSite(domain: String) = blockedSiteDao.delete(domain)
+
+    suspend fun isBlockedSite(domain: String): Boolean = blockedSiteDao.exists(domain) > 0
 }

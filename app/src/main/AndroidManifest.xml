@@ -39,6 +39,14 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <receiver
+            android:name=".service.accessibility.BlockSiteReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.antibet.ACTION_BLOCK_SITE" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
