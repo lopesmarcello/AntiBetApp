@@ -30,7 +30,7 @@ import com.antibet.presentation.add.AddEntryViewModel
 import com.antibet.presentation.home.HomeScreen
 import com.antibet.presentation.home.HomeViewModel
 import com.antibet.presentation.navigation.Screen
-import com.antibet.presentation.protection.ProtectionScreen
+import com.antibet.presentation.protection.AccessibilityProtectionScreen
 
 @Composable
 fun MainApp() {
@@ -92,9 +92,8 @@ fun MainApp() {
             }
             
             composable(Screen.Protection.route) {
-                ProtectionScreen(
-                    isVpnRunning = isVpnRunning,
-                    onToggleVpn = { enabled -> isVpnRunning = enabled }
+                AccessibilityProtectionScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             

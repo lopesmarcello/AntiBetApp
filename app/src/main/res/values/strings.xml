@@ -1,3 +1,15 @@
 <resources>
     <string name="app_name">antibet</string>
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_description">
+        Monitora sites de apostas para te ajudar a manter o controle.\n\n
+        Este serviço observa os sites que você visita e envia notificações quando detecta sites de apostas,
+        ajudando você a manter-se consciente e no controle.\n\n
+        ✓ Não deixa seu navegador lento\n
+        ✓ Não coleta dados de navegação\n
+        ✓ Não interfere com outros apps\n
+        ✓ Privacidade total - tudo fica no seu dispositivo
+    </string>
+
+    <string name="accessibility_service_label">Anti-Bet Proteção Web</string>
 </resources>
