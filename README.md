@@ -14,11 +14,12 @@
 - Acompanhe o total economizado ao longo do tempo
 - Veja gráficos diário, semanal e mensal
 
-### 🛡️ Proteção via VPN
-- Sistema de VPN local que detecta tentativas de acesso a sites de apostas
+### 🛡️ Proteção via Accessibility Service
+- Serviço de acessibilidade que monitora navegação em navegadores
+- Detecta tentativas de acesso a sites de apostas em tempo real
 - Notificação imediata quando um site de aposta é detectado
-- Possibilidade de **bloquear** o acesso (funcionalidade opcional)
 - Lista de domínios de apostas brasileiros e internacionais
+- Funciona em Chrome, Firefox, Edge, Opera, Brave, Samsung Internet e Kiwi Browser
 
 ### ⏰ Lembretes Diários
 - Notificações periódicas para registrar economias
@@ -28,8 +29,10 @@
 ## 🔒 Privacidade e Segurança
 
 - **Dados armazenados localmente** no dispositivo
-- VPN funciona **100% no dispositivo** - nenhum dado é enviado para servidores externos
-- Inspeção de tráfego limitada apenas a domínios de apostas conhecidos
+- **Nenhum dado é enviado para servidores externos**
+- Accessibility Service monitora apenas a URL atual do navegador
+- Não armazena histórico de navegação
+- Não inspeciona conteúdo de páginas (apenas URL)
 - Total conformidade com políticas do Google Play
 
 ## 📱 Tecnologias
@@ -39,7 +42,7 @@
 - **Banco de dados**: Room (SQLite)
 - **Navegação**: Navigation Compose
 - **Background**: WorkManager
-- **VPN**: Android VpnService API
+- **Proteção**: Android AccessibilityService API
 
 ## 📋 Requisitos
 
@@ -75,21 +78,22 @@ app/src/main/java/com/antibet/
 │   ├── add/            # Tela de registro
 │   ├── home/          # Tela principal
 │   ├── navigation/    # Navegação
-│   ├── protection/    # Tela de proteção VPN
+│   ├── protection/    # Tela de proteção Accessibility
 │   └── theme/         # Tema do app
 ├── service/
-│   ├── notification/   # Workers de notificação
-│   └── vpn/            # Serviço VPN
+│   ├── accessibility/  # Serviço de acessibilidade
+│   └── notification/   # Workers de notificação
 └── util/               # Utilitários
 ```
 
 ## 📄 Políticas
 
-Este app foi desenvolvido seguindo as diretrizes do Google Play para uso de VpnService, sendo categorizado como **controle parental / segurança de dispositivo**. O app:
+Este app foi desenvolvido seguindo as diretrizes do Google Play para uso de AccessibilityService, sendo categorizado como **controle parental / segurança de dispositivo**. O app:
 
-- Não monetiza dados de tráfego
-- Não colet histórico de navegação
-- Usa inspeção de DNS local apenas para domínios de apostas
+- Não monetiza dados de navegação
+- Não armazena histórico de navegação
+- Usa AccessibilityService apenas para detectar URLs em navegadores
+- Não inspeciona conteúdo de páginas ou dados sensíveis
 - Fornece transparência total ao usuário
 
 ## 📝 Licença
