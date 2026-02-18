@@ -22,3 +22,11 @@
 # Coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+
+# dnsjava — DNS parsing library used in AntiBetVpnService
+-keep class org.xbill.DNS.** { *; }
+-dontwarn org.xbill.DNS.**
+
+# pcap4j — IP/UDP packet parsing and building used in AntiBetVpnService
+-keep class org.pcap4j.** { *; }
+-dontwarn org.pcap4j.**

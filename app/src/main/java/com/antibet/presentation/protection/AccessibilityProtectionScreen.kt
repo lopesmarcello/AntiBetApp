@@ -1,6 +1,9 @@
 package com.antibet.presentation.protection
 
 import android.app.Activity
+import android.app.Activity.RESULT_OK
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -34,18 +37,28 @@ fun AccessibilityProtectionScreen(
     val isServiceEnabled by viewModel.isServiceEnabled.collectAsState()
     val hasNavigatedToSettings by viewModel.hasNavigatedToSettings.collectAsState()
     val isNotificationPermissionGranted by viewModel.isNotificationPermissionGranted.collectAsState()
+    val isVpnActive by viewModel.isVpnActive.collectAsState()
 
-    // Verificar status inicial quando a tela aparecer
+    // Launcher for the Android VPN consent dialog
+    val vpnConsentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            // User granted consent — start the VPN service
+            viewModel.startVpnFilter(context)
+        }
+    }
+
+    // Initial status check
     LaunchedEffect(Unit) {
         viewModel.checkServiceStatus(context)
         viewModel.checkNotificationPermission(context)
     }
 
-    // Observar lifecycle para detectar quando usuário volta das configurações
+    // Re-check on resume (user may have returned from system settings)
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                // Usuário voltou para o app (possivelmente das configurações)
                 if (hasNavigatedToSettings) {
                     viewModel.checkServiceStatusWithDelay(context)
                     viewModel.checkNotificationPermission(context)
@@ -54,14 +67,11 @@ fun AccessibilityProtectionScreen(
                     viewModel.checkServiceStatusWithDelay(context)
                     viewModel.checkNotificationPermission(context)
                 }
+                viewModel.refreshVpnState()
             }
         }
-
         lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Scaffold(
@@ -87,64 +97,84 @@ fun AccessibilityProtectionScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Card de status de acessibilidade
+            // Accessibility status
             AccessibilityStatusCard(isEnabled = isServiceEnabled)
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Card de status de notificações
+            // Notification status
             NotificationStatusCard(isEnabled = isNotificationPermissionGranted)
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // VPN / DNS filter status
+            VpnStatusCard(isActive = isVpnActive)
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Explicação
             ExplanationSection()
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Como funciona
             HowItWorksSection()
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Botões de ação
+            // Action buttons
             PermissionButtons(
                 isAccessibilityEnabled = isServiceEnabled,
                 isNotificationEnabled = isNotificationPermissionGranted,
-                onAccessibilityClick = {
-                    viewModel.openAccessibilitySettings(context)
-                },
+                isVpnActive = isVpnActive,
+                onAccessibilityClick = { viewModel.openAccessibilitySettings(context) },
                 onNotificationClick = {
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                        // Para Android 13+, tenta solicitar permissão
                         val activity = context as? Activity
                         if (activity != null) {
                             viewModel.requestNotificationPermission(activity)
                         } else {
-                            // Fallback: abre configurações
                             viewModel.openNotificationSettings(context)
                         }
                     } else {
-                        // Para Android < 13, abre configurações
                         viewModel.openNotificationSettings(context)
+                    }
+                },
+                onVpnToggle = {
+                    if (isVpnActive) {
+                        viewModel.stopVpnFilter(context)
+                    } else {
+                        val consentIntent = viewModel.prepareVpn(context)
+                        if (consentIntent != null) {
+                            // Android needs one-time user consent
+                            vpnConsentLauncher.launch(consentIntent)
+                        } else {
+                            // Already consented — start directly
+                            viewModel.startVpnFilter(context)
+                        }
                     }
                 }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Instruções ou card de sucesso
+            // Bottom card: instructions or success
+            val fullyProtected = isServiceEnabled && isNotificationPermissionGranted && isVpnActive
             if (!isServiceEnabled || !isNotificationPermissionGranted) {
                 InstructionCard(
                     needsAccessibility = !isServiceEnabled,
                     needsNotification = !isNotificationPermissionGranted
                 )
+            } else if (fullyProtected) {
+                FullProtectionCard()
             } else {
-                SuccessCard()
+                PartialProtectionCard(isVpnActive = isVpnActive)
             }
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Status cards
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun AccessibilityStatusCard(isEnabled: Boolean) {
@@ -167,25 +197,18 @@ private fun AccessibilityStatusCard(isEnabled: Boolean) {
                 imageVector = if (isEnabled) Icons.Default.CheckCircle else Icons.Default.Warning,
                 contentDescription = null,
                 modifier = Modifier.size(40.dp),
-                tint = if (isEnabled)
-                    MaterialTheme.colorScheme.primary
-                else
-                    MaterialTheme.colorScheme.error
+                tint = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
             )
-
             Spacer(modifier = Modifier.width(12.dp))
-
             Column {
                 Text(
-                    text = if (isEnabled) "🛡️ Monitoramento Ativo" else "🛡️ Monitoramento Inativo",
+                    text = if (isEnabled) "Monitoramento Ativo" else "Monitoramento Inativo",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = if (isEnabled)
-                        "Detectando sites de apostas"
-                    else
-                        "Ative para começar a monitorar",
+                    text = if (isEnabled) "Detectando e notificando sites de apostas"
+                           else "Ative para começar a monitorar",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -214,25 +237,18 @@ private fun NotificationStatusCard(isEnabled: Boolean) {
                 imageVector = if (isEnabled) Icons.Default.CheckCircle else Icons.Default.Notifications,
                 contentDescription = null,
                 modifier = Modifier.size(40.dp),
-                tint = if (isEnabled)
-                    MaterialTheme.colorScheme.primary
-                else
-                    MaterialTheme.colorScheme.error
+                tint = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
             )
-
             Spacer(modifier = Modifier.width(12.dp))
-
             Column {
                 Text(
-                    text = if (isEnabled) "🔔 Notificações Permitidas" else "🔔 Notificações Bloqueadas",
+                    text = if (isEnabled) "Notificações Permitidas" else "Notificações Bloqueadas",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = if (isEnabled)
-                        "Você receberá alertas"
-                    else
-                        "Permita para receber alertas",
+                    text = if (isEnabled) "Você receberá alertas ao visitar sites"
+                           else "Permita para receber alertas",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -241,17 +257,66 @@ private fun NotificationStatusCard(isEnabled: Boolean) {
 }
 
 @Composable
+private fun VpnStatusCard(isActive: Boolean) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isActive)
+                MaterialTheme.colorScheme.primaryContainer
+            else
+                MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (isActive) Icons.Default.CheckCircle else Icons.Default.Warning,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = if (isActive) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = if (isActive) "Bloqueio DNS Ativo" else "Bloqueio DNS Inativo",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (isActive)
+                        "Sites bloqueados não carregam — 100% local, sem servidores externos"
+                    else
+                        "Ative para impedir que sites bloqueados carreguem",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Action buttons
+// ---------------------------------------------------------------------------
+
+@Composable
 private fun PermissionButtons(
     isAccessibilityEnabled: Boolean,
     isNotificationEnabled: Boolean,
+    isVpnActive: Boolean,
     onAccessibilityClick: () -> Unit,
-    onNotificationClick: () -> Unit
+    onNotificationClick: () -> Unit,
+    onVpnToggle: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Botão de Acessibilidade
+        // Accessibility button
         Button(
             onClick = onAccessibilityClick,
             modifier = Modifier
@@ -265,23 +330,19 @@ private fun PermissionButtons(
             )
         ) {
             Icon(
-                imageVector = if (isAccessibilityEnabled)
-                    Icons.Default.CheckCircle
-                else
-                    Icons.Default.Warning,
+                imageVector = if (isAccessibilityEnabled) Icons.Default.CheckCircle
+                              else Icons.Default.Warning,
                 contentDescription = null
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (isAccessibilityEnabled)
-                    "Gerenciar Monitoramento"
-                else
-                    "Ativar Monitoramento",
+                text = if (isAccessibilityEnabled) "Gerenciar Monitoramento"
+                       else "Ativar Monitoramento",
                 style = MaterialTheme.typography.titleMedium
             )
         }
 
-        // Botão de Notificações (só aparece se não estiver permitido)
+        // Notification button (only shown if needed)
         if (!isNotificationEnabled) {
             Button(
                 onClick = onNotificationClick,
@@ -292,10 +353,7 @@ private fun PermissionButtons(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = null
-                )
+                Icon(imageVector = Icons.Default.Notifications, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Permitir Notificações",
@@ -303,48 +361,97 @@ private fun PermissionButtons(
                 )
             }
         }
+
+        // VPN / DNS filter toggle — always visible so user can turn it on/off
+        Button(
+            onClick = onVpnToggle,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isVpnActive)
+                    MaterialTheme.colorScheme.secondary
+                else
+                    MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Icon(
+                imageVector = if (isVpnActive) Icons.Default.CheckCircle
+                              else Icons.Default.Warning,
+                contentDescription = null
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (isVpnActive) "Desativar Bloqueio DNS"
+                       else "Ativar Bloqueio DNS",
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Info cards
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun ExplanationSection() {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "🛡️ Proteção Inteligente",
+                text = "Proteção em duas camadas",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Text(
-                text = "Esta proteção monitora os sites que você visita e envia uma notificação amigável quando detecta que você está acessando um site de apostas.",
+                text = "O app combina duas tecnologias complementares para uma proteção completa:",
                 style = MaterialTheme.typography.bodyMedium
             )
-
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "✅ Vantagens:",
+                text = "1. Monitoramento (Acessibilidade)",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
-
             Spacer(modifier = Modifier.height(4.dp))
-
-            val advantages = listOf(
-                "Navegação rápida e sem lentidão",
-                "Consumo mínimo de bateria",
-                "Privacidade total - dados não saem do celular",
-                "Funciona com todos os navegadores"
+            Text(
+                text = "Detecta sites de apostas no navegador e envia alertas. Permite registrar economias diretamente da notificação.",
+                style = MaterialTheme.typography.bodySmall
             )
+            Spacer(modifier = Modifier.height(10.dp))
 
-            advantages.forEach { advantage ->
+            Text(
+                text = "2. Bloqueio DNS (VPN local)",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Impede que sites da sua lista de bloqueio carreguem. O bloqueio acontece no próprio celular — nenhum dado passa por servidores externos.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Vantagens:",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            listOf(
+                "Velocidade de navegação inalterada",
+                "Consumo mínimo de bateria",
+                "Privacidade total — dados não saem do celular",
+                "Funciona com todos os navegadores e apps"
+            ).forEach { item ->
                 Row(modifier = Modifier.padding(vertical = 2.dp)) {
                     Text("• ", color = MaterialTheme.colorScheme.primary)
-                    Text(advantage, style = MaterialTheme.typography.bodySmall)
+                    Text(item, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -361,37 +468,29 @@ private fun HowItWorksSection() {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "🔍 Como Funciona?",
+                text = "Como funciona o Bloqueio DNS?",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Text(
-                text = "O app usa um recurso do Android chamado 'Serviço de Acessibilidade' para observar discretamente o navegador. Quando você visita um site de apostas, você recebe uma notificação gentil para te lembrar do seu objetivo.",
+                text = "Quando você tenta acessar um site bloqueado, o app intercepta a consulta DNS no próprio celular e retorna 'domínio não encontrado'. O navegador mostra o erro padrão de 'site não encontrado' — sem flash de página, sem redirecionamento.",
                 style = MaterialTheme.typography.bodyMedium
             )
-
             Spacer(modifier = Modifier.height(12.dp))
-
             Text(
-                text = "⚠️ O app NÃO:",
+                text = "O app NÃO:",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.error
             )
-
             Spacer(modifier = Modifier.height(4.dp))
-
-            val notDoes = listOf(
-                "Bloqueia ou interfere na navegação",
-                "Deixa seu navegador lento",
-                "Coleta ou armazena seu histórico",
-                "Envia dados para servidores"
-            )
-
-            notDoes.forEach { item ->
+            listOf(
+                "Lentifica sua navegação",
+                "Envia tráfego para servidores externos",
+                "Coleta ou armazena histórico de navegação",
+                "Interfere em sites que não estão na lista"
+            ).forEach { item ->
                 Row(modifier = Modifier.padding(vertical = 2.dp)) {
                     Text("✗ ", color = MaterialTheme.colorScheme.error)
                     Text(item, style = MaterialTheme.typography.bodySmall)
@@ -414,40 +513,28 @@ private fun InstructionCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "📋 Siga estes passos:",
+                text = "Siga estes passos:",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-
             Spacer(modifier = Modifier.height(12.dp))
 
             val steps = mutableListOf<String>()
-
             if (needsAccessibility) {
                 steps.addAll(listOf(
                     "Toque em 'Ativar Monitoramento' acima",
-                    "Você será levado às configurações de Acessibilidade",
-                    "Procure por 'Anti-Bet' ou 'Anti-Bet Proteção Web'",
-                    "Toque no serviço e ative o botão",
-                    "Confirme tocando em 'OK' ou 'Permitir'"
+                    "Nas configurações de Acessibilidade, procure 'AntiBet'",
+                    "Ative o serviço e confirme com 'OK'"
                 ))
             }
-
             if (needsNotification) {
-                if (steps.isNotEmpty()) {
-                    steps.add("Volte para este app usando o botão voltar ◀")
-                }
+                if (steps.isNotEmpty()) steps.add("Volte para o app")
                 steps.addAll(listOf(
-                    "Toque em 'Permitir Notificações' acima",
-                    "Ative as notificações do Anti-Bet"
+                    "Toque em 'Permitir Notificações'",
+                    "Ative as notificações do AntiBet"
                 ))
             }
-
-            if (!needsAccessibility && !needsNotification) {
-                steps.add("Pronto! 🎉")
-            } else {
-                steps.add("Volte para este app - tudo certo! 🎉")
-            }
+            steps.add("Volte para este app — pronto!")
 
             steps.forEachIndexed { index, step ->
                 Row(
@@ -461,17 +548,13 @@ private fun InstructionCard(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Text(
-                        text = step,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Text(text = step, style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-
             Text(
-                text = "💡 Dica: Não se preocupe se demorar um pouco. Você pode fechar e voltar para este app quando quiser.",
+                text = "Dica: Você pode fechar e voltar a qualquer momento.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f),
                 modifier = Modifier
@@ -487,7 +570,35 @@ private fun InstructionCard(
 }
 
 @Composable
-private fun SuccessCard() {
+private fun PartialProtectionCard(isVpnActive: Boolean) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Monitoramento ativo!",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Você receberá alertas ao visitar sites de apostas. Para também bloquear o acesso, ative o Bloqueio DNS acima.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun FullProtectionCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -499,31 +610,20 @@ private fun SuccessCard() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "🎉",
-                style = MaterialTheme.typography.displayLarge
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Proteção Ativada com Sucesso!",
+                text = "Proteção Completa Ativada!",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Text(
-                text = "Agora você receberá notificações sempre que acessar um site de apostas. Continue focado no seu objetivo! 💪",
+                text = "Monitoramento ativo e bloqueio DNS habilitado. Sites da sua lista não carregarão. Continue focado no seu objetivo!",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
             )
-
             Spacer(modifier = Modifier.height(12.dp))
-
             Text(
-                text = "Você pode desativar ou reconfigurar a qualquer momento tocando em 'Gerenciar Monitoramento' acima.",
+                text = "Gerencie os sites bloqueados na aba 'Bloqueados'.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center

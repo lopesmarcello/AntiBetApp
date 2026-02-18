@@ -80,6 +80,12 @@ dependencies {
     // Gson for domain list parsing
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // DNS parsing
+    implementation("dnsjava:dnsjava:3.6.2")
+
+    // IP/UDP packet parsing and building — replaces all hand-rolled byte arithmetic
+    implementation("org.pcap4j:pcap4j-core:1.8.2")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
